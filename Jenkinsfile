@@ -1,5 +1,4 @@
 pipeline {
-    agent any
     environment {
         REGISTRY="docker.io"
         dockerRegistryCredential='docker-hub-harun'
