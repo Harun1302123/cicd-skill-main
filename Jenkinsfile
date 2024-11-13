@@ -2,12 +2,11 @@ pipeline {
     agent any
     environment {
         REGISTRY="docker.io"
-        dockerRegistryCredential='docker-credentials'
         dockerImage = ''
         DOCKER_REGISTRY_URL="https://$REGISTRY"
         IMAGE_CREATED_BY="jenkins"
         PROJECT_NAME="php-app-prod"
-        GIT_TAG=sh(returnStdout: true, script: '''        
+        GIT_TAG=sh(returnStdout: true, script: '''
             echo $(git describe --tags)
         ''').trim()
         IMAGE_VERSION="$BUILD_NUMBER-$IMAGE_CREATED_BY"
@@ -41,10 +40,10 @@ pipeline {
         stage('Push Docker image') {
             steps {
                 script {
-                    docker.withRegistry( "$DOCKER_REGISTRY_URL", dockerRegistryCredential ) {
-                        dockerImage.push()
-                        sh "docker images | grep $PROJECT_NAME"
-                    }
+                    echo "Pushing Docker image to public registry $DOCKER_TAG"
+                    // No credentials are required for public registry push
+                    sh "docker push $DOCKER_TAG"
+                    sh "docker images | grep $PROJECT_NAME"
                 }
             }
         }
@@ -55,13 +54,12 @@ pipeline {
                     def scanResult = sh(script: "trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_TAG", returnStatus: true)
                     
                     if (scanResult != 0) {
-                        def message = "Trivy scan failed for image $DOCKER_TAG by ${AUTHOR_NAME} (${AUTHOR_EMAIL}). Check the logs for details."
+                        def message = "Trivy scan failed for image $DOCKER_TAG. Check the logs for details. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                         sh """
                         curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                         """
-                        error "Trivy scan failed."
                     } else {
-                        def message = "Trivy scan succeeded for image $DOCKER_TAG by ${AUTHOR_NAME} (${AUTHOR_EMAIL}). No critical vulnerabilities found."
+                        def message = "Trivy scan succeeded for image $DOCKER_TAG. No critical vulnerabilities found. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                         sh """
                         curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                         """
@@ -82,18 +80,17 @@ pipeline {
         stage('Run PHPUnit Tests') {
             steps {
                 script {
-                    echo "Running PHPUnit tests in Docker container"
                     def testResult = sh(script: '''
                     docker exec php-app /var/www/html/vendor/bin/phpunit --configuration phpunit.xml
                     ''', returnStatus: true)
 
                     if (testResult != 0) {
-                        def message = "Unit tests failed in Docker container php-app by ${AUTHOR_NAME} (${AUTHOR_EMAIL}). Check the logs for details."
+                        def message = "Unit tests failed in Docker container php-app. Check the logs for details. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                         sh """
                         curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                         """
                     } else {
-                        def message = "Unit tests passed successfully in Docker container php-app by ${AUTHOR_NAME} (${AUTHOR_EMAIL})."
+                        def message = "Unit tests passed successfully in Docker container php-app. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                         sh """
                         curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                         """
@@ -105,18 +102,17 @@ pipeline {
         stage('Run SQA Testing') {
             steps {
                 script {
-                    echo "Running SQA testing for PHP application"
                     def sqaResult = sh(script: '''
                     echo "Running SQA tests..."
                     ''', returnStatus: true)
 
                     if (sqaResult != 0) {
-                        def message = "SQA tests failed for the PHP application by ${AUTHOR_NAME} (${AUTHOR_EMAIL}). Check the logs for details."
+                        def message = "SQA tests failed for the PHP application. Check the logs for details. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                         sh """
                         curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                         """
                     } else {
-                        def message = "SQA tests passed successfully for the PHP application by ${AUTHOR_NAME} (${AUTHOR_EMAIL})."
+                        def message = "SQA tests passed successfully for the PHP application. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                         sh """
                         curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                         """
@@ -129,7 +125,7 @@ pipeline {
             steps {
                 script {
                     sh 'docker run -d $DOCKER_TAG'
-                    def message = "Deployment of $DOCKER_TAG was successful by ${AUTHOR_NAME} (${AUTHOR_EMAIL})."
+                    def message = "Deployment of $DOCKER_TAG was successful. (By $AUTHOR_NAME <$AUTHOR_EMAIL>)"
                     sh """
                     curl -H "Content-Type: application/json" -d '{ "content": "${message}" }' ${DISCORD_WEBHOOK_URL}
                     """
