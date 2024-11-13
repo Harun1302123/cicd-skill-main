@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         REGISTRY="docker.io"
-        dockerRegistryCredential='docker-credentials'
+        dockerRegistryCredential='docker-hub-harun'
         dockerImage = ''
         DOCKER_REGISTRY_URL="https://$REGISTRY"
         IMAGE_CREATED_BY="jenkins"
